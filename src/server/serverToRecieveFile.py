@@ -26,32 +26,43 @@ def receive_file_from_client(connection):
         return None  # Return None if there's an error
 
     print(f"Receiving file: {file_name}") # Proceed to receive file if name is correct
+    connection.send(b"READY")
 
-    connection.send(b"READY")  # Send acknowledgment that server is ready to receive the file content
-    connection.settimeout(3)  # Prevent indefinite blocking
-
-    try:
-        # Creates a file and writes the content sent over by the client
-        with open(file_name, "wb") as f:
-            while True:
-                try:
-                    data = connection.recv(CHUNK_SIZE)
-                    if not data:  # Connection closed
-                        break
-                    # Check if "END" is part of the data
-                    if data.endswith(b"END"):
-                        f.write(data[:-3])  # Write everything except "END"
-                        break
-                    f.write(data)  # Write normally if "END" is not present
-                except socket.timeout:
+    seq_num = 0  # Initialize sequence number on server
+    with open(file_name, "wb") as f:
+        while True:
+            try:
+                data = connection.recv(CHUNK_SIZE)
+                if not data:
                     break
 
-        print("File received successfully. Chunking and sending back...")
-        return file_name
+                # Handle the "END" case
+                if data.endswith(b"END"):
+                    f.write(data[:-3])  # Write everything except "END"
+                    break  # Exit the loop after writing the last chunk without "END"
+                else:
+                    f.write(data)  # Write chunk normally if no "END" present
 
-    except Exception as ex:
-        print(f"Error during file receiving process: {ex}")
-        return None
+                # Parse the chunk with sequence number (if needed for chunking)
+                try:
+                    seq_marker, chunk_data = data.split(b":", 1)  # Split the sequence number from the chunk
+                    received_seq_num = int(seq_marker.decode())
+
+                    if received_seq_num != seq_num:
+                        print(f"Out-of-order chunk received. Expected {seq_num}, but got {received_seq_num}.")
+                    else:
+                        seq_num += 1  # Increment sequence number for next expected chunk
+
+                except ValueError:
+                    print("Error: Invalid chunk format or corrupted data.")
+                    break
+
+            except socket.timeout:
+                break
+
+    print("File received successfully. Chunking and sending back...")
+    return file_name
+
 
 def resend_file_to_client(connection, file_name):
 

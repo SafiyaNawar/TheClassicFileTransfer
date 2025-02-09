@@ -11,10 +11,8 @@ def calculate_the_checksum(data):
 
 # Client starts to send the file over the established connection to the server
 def send_file_to_server(client_socket, file_path):
-    # Extract the file name from file path entered
     file_name = os.path.basename(file_path)
 
-    # If the file does not exist or incorrect name was given by mistake
     if not os.path.exists(file_path):
         print(f"Error: The file '{file_path}' does not exist.")
         client_socket.send(b"ERROR: File does not exist.")  # Send error message to server
@@ -39,18 +37,20 @@ def send_file_to_server(client_socket, file_path):
         client_socket.close()
         exit()
 
-    try:
-        with open(file_path, "rb") as f:
-            while chunk := f.read(CHUNK_SIZE):
-                client_socket.sendall(chunk)
+    # Open the file and send chunks with sequence numbers
+    with open(file_path, "rb") as f:
+        seq_num = 0
+        while chunk := f.read(CHUNK_SIZE):
+            # Prefix the chunk with the sequence number
+            tagged_chunk = f"{seq_num}:{chunk.decode(errors='ignore')}".encode()  # Tag the chunk with seq_num
+            client_socket.sendall(tagged_chunk)
+            seq_num += 1
+            print(tagged_chunk)
 
-        client_socket.sendall(b"END")  # Indicate end of transmission
-        print("File has been uploaded. Waiting for response...")
-        return file_name
-    except Exception as ex:
-        print("Unexpected error uploading the file")
-        client_socket.close()
-        exit()
+    client_socket.sendall(b"END")  # Indicate end of transmission
+    print("File has been uploaded. Waiting for response...")
+
+    return file_name
 
 
 # Client starts to send the file over the established connection to the server
