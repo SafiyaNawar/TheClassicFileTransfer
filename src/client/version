@@ -1,0 +1,3 @@
+v 1.0
+- uploads a file to the server
+- reassembles chucnks to check integrity with checksum
